@@ -59,5 +59,11 @@ app.post('/upload', (req, res) => {
     }).catch((err)=>{res.json({err});res.end();});
 })
 
+app.get('/nigga', (req, res) => {
+    let sucker = "CUNT"
+    res.json(sucker);
+    res.end();
+})
+
 app.use('/', router)
 app.listen(8000)
