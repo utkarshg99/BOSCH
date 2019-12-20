@@ -18,34 +18,6 @@ function generateClusterJSON(rows) {
     }
 }
 
-async function findDistance(pt1, pt2) {
-    let stp1 = pt1[0] + ',' + pt1[1];
-    let stp2 = pt2[0] + ',' + pt2[1];
-    // console.log(stp1)
-    // console.log(stp2)
-    let params = {
-        mode: "fastest;car",
-        waypoint0: stp1,
-        waypoint1: stp2,
-        representation: "display",
-        routeAttributes: "summary"
-    };
-    let promx, distance;
-    // find routingService
-    let routingService = platform.getRoutingService();
-    promx = new Promise(function (resolve, reject) {
-        routingService.calculateRoute(params, (success) => {
-            // distance=success.response.route[0].summary.distance;
-            resolve();
-        }, (error) => {
-            console.log(error);
-            reject();
-        });
-    })
-    await promx;
-    return distance;
-}
-
 async function calculateRouteFromAtoB(pt1, pt2, dfxr = false) {
     let stp1 = pt1[0] + ',' + pt1[1];
     let stp2 = pt2[0] + ',' + pt2[1];
@@ -109,10 +81,15 @@ async function calculateDistances(clusters) {
     for (var i = 0; i < clusters.length; i++) {
         let cluster = clusters[i];
         for (var j = 0; j < cluster.length; j++) {
-            for (var k = 0; k < cluster.length; k++) {
+            for (var k = j; k < cluster.length; k++) {
                 await calculateRouteFromAtoB(cluster[j], cluster[k])
-                    if (j != k)
-                        dist[i][j][k] = dxt;
+                let l1 = dxt;
+                await calculateRouteFromAtoB(cluster[k], cluster[j])
+                let l2 = dxt;
+                    if (j != k){
+                        dist[i][j][k] = Math.min(l1, l2);
+                        dist[i][k][j] = Math.min(l1, l2);
+                    }
                     else
                         dist[i][j][k] = 0;
             }
@@ -169,6 +146,7 @@ function insertClusters(clusters) {
 
 async function pathMakerOrdered(order){
     let cls=[];
+    console.log(order)
     for(var i=0; i<order.length; i++){
         cls=order[i];
         for(var j=0; j<cls.length-1; j++){
@@ -185,7 +163,8 @@ async function worker() {
     var dist = await calculateDistances(clusters);
     let urlDistance = urlServer + '/uploadDistances';
     let dstx = generateDistanceJSON(clusters, dist);
-    var orderedDistance = await (axios.post(urlDistance, dstx)).data;
+    var orderedDistance = await (axios.post(urlDistance, dstx));
+    orderedDistance = orderedDistance.data.data
     await pathMakerOrdered(orderedDistance);
 }
 

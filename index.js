@@ -18,7 +18,10 @@ app.use(bodyParser.json({
 }))
 
 const command = 'generateCluster.exe'
-const command2 = './generatePaths'
+const command2 = 'generatePaths.exe'
+
+// const command = './generateCluster'
+// const command2 = './generatePaths'
 
 function writeToCSVT1(data){
     let strx = data.length+'\n';
@@ -103,7 +106,7 @@ async function getSomethingMoreDone(){
         });
     })
     await promiseForClusters;
-    return readFromCSV('something.csv');
+    return readFromCSV('ordered.csv');
 }
 
 app.post('/uploadPoints', (req, res) => {
@@ -119,7 +122,7 @@ app.post('/uploadDistances', (req, res) => {
     var data = req.body;
     writeToCSVT2(data);
     getSomethingMoreDone().then((dt1) => {
-        console.log(dt1)
+        console.log(dt1);
         res.json({"data":dt1});
         res.end();
     }).catch((err)=>{res.json({err});res.end();});
