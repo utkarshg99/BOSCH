@@ -1,5 +1,6 @@
 /**@param  {H.Map} map*/
 var rows=[]
+var allMarkers=[];
 
 function setUpClickListener(map) {
   map.addEventListener('tap', function (evt) {
@@ -11,6 +12,7 @@ function setUpClickListener(map) {
          ((coord.lng > 0) ? 'E' : 'W'));
     console.log(coord.lat.toFixed(4), coord.lng.toFixed(4))
     var parisMarker = new H.map.Marker({lat:coord.lat.toFixed(4), lng:coord.lng.toFixed(4)});
+    allMarkers.push(parisMarker)
     var hu = [];
     hu.push(coord.lat.toFixed(4));
     hu.push(coord.lng.toFixed(4));
@@ -28,7 +30,7 @@ var defaultLayers = platform.createDefaultLayers();
 var map = new H.Map(document.getElementById('map'),
   defaultLayers.vector.normal.map,{
   center: {lat:12.9663, lng:77.5880},
-  zoom: 9,
+  zoom: 11,
   pixelRatio: window.devicePixelRatio || 1
 });
 window.addEventListener('resize', () => map.getViewPort().resize());

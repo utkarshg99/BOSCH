@@ -1,19 +1,30 @@
 // var urlServer = 'ec2-34-227-87-231.compute-1.amazonaws.com';
 var urlServer = 'http://localhost:8000'
+var svgMarkup = '<svg width="26" height="26" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg"><circle opacity="0.9" id="svg_1" r="12" cy="13" cx="13" stroke-width="2" stroke="#333333" fill="${FILL}"/><text xml:space="preserve" text-anchor="middle" id="svg_2" y="18.5" x="13" stroke-width="0" font-size="10pt" font-family="Roboto" stroke="#000000" fill="#000000">${TEXT}</text></svg>';
+var colors = ['green', 'yellow', 'red', 'gold', 'pink', 'orange', 'brown', 'gray']
+var rte = '';
+var dxt;
+var dist;
 
-function generateClusterJSON(rows){
+/**
+ * @param {Object} route
+ * @param   {H.service.Platform} platform  
+ */
+
+function generateClusterJSON(rows) {
     return {
         "data": rows,
         "length": rows.length
     }
-    // the dimension of the matrix acccessed from "data" will be ("length", 2)
 }
 
-async function findDistance(pt1, pt2){
-    let stp1 = pt1[0]+','+pt1[1];
-    let stp2 = pt2[0]+','+pt2[1];
+async function findDistance(pt1, pt2) {
+    let stp1 = pt1[0] + ',' + pt1[1];
+    let stp2 = pt2[0] + ',' + pt2[1];
+    // console.log(stp1)
+    // console.log(stp2)
     let params = {
-        mode: "fastest;car;traffic:enabled",
+        mode: "fastest;car",
         waypoint0: stp1,
         waypoint1: stp2,
         representation: "display",
@@ -21,11 +32,12 @@ async function findDistance(pt1, pt2){
     };
     let promx, distance;
     // find routingService
-    promx = new Promise(function(resolve, reject){
-        routingService.calculateRoute(params, (success)=>{
-            distance=success.response.route[0].summary.distance;
+    let routingService = platform.getRoutingService();
+    promx = new Promise(function (resolve, reject) {
+        routingService.calculateRoute(params, (success) => {
+            // distance=success.response.route[0].summary.distance;
             resolve();
-        }, (error)=>{
+        }, (error) => {
             console.log(error);
             reject();
         });
@@ -34,50 +46,147 @@ async function findDistance(pt1, pt2){
     return distance;
 }
 
-async function calculateDistances(clusters){
-    var dist = [];
-    for(var i=0; i<clusters.length; i++){
+async function calculateRouteFromAtoB(pt1, pt2, dfxr = false) {
+    let stp1 = pt1[0] + ',' + pt1[1];
+    let stp2 = pt2[0] + ',' + pt2[1];
+    var router = platform.getRoutingService()
+    var routeRequestParams = {
+        mode: 'fastest;car',
+        representation: 'display',
+        routeattributes: 'waypoints,summary,shape,legs',
+        waypoint0: stp1,
+        waypoint1: stp2
+    };
+    var uus = new Promise(function (resolve, reject) {
+        router.calculateRoute(
+            routeRequestParams,
+            function (result) {
+                dxt = result.response.route[0].summary.distance;
+                var route = result.response.route[0];
+                if(dfxr)
+                addRouteShapeToMap(route);
+                resolve();
+            }
+        );
+    })
+    await uus;
+}
+
+function addRouteShapeToMap(route) {
+    var lineString = new H.geo.LineString(),
+        routeShape = route.shape,
+        polyline;
+    routeShape.forEach(function (point) {
+        var parts = point.split(',');
+        lineString.pushLatLngAlt(parts[0], parts[1]);
+    });
+    polyline = new H.map.Polyline(lineString, {
+        style: {
+            lineWidth: 4,
+            strokeColor: 'rgba(0, 128, 255, 0.7)'
+        }
+    });
+    map.addObject(polyline);
+    map.getViewModel().setLookAtData({
+        bounds: polyline.getBoundingBox()
+    });
+}
+
+async function calculateDistances(clusters) {
+    dist = [];
+    for (var i = 0; i < clusters.length; i++) {
         let cluster = clusters[i];
         let y = [];
-        for(var j=0; j<cluster.length; j++){
-            let x=[];
-            for(var k=0; k<cluster.length; k++){
+        for (var j = 0; j < cluster.length; j++) {
+            let x = [];
+            for (var k = 0; k < cluster.length; k++) {
                 x.push(0);
             }
             y.push(x);
         }
         dist.push(y);
     }
-    for(var i=0; i<clusters.length; i++){
+    for (var i = 0; i < clusters.length; i++) {
         let cluster = clusters[i];
-        for(var j=0; j<cluster.length; j++){
-            for(var k=0; k<cluster.length; k++){
-                dist[i][j][k] = await findDistance(cluster[j], cluster[k]);
+        for (var j = 0; j < cluster.length; j++) {
+            for (var k = 0; k < cluster.length; k++) {
+                await calculateRouteFromAtoB(cluster[j], cluster[k])
+                    if (j != k)
+                        dist[i][j][k] = dxt;
+                    else
+                        dist[i][j][k] = 0;
             }
         }
     }
+    return dist
 }
 
-function generateDistanceJSON(clusters, dist){
+function generateDistanceJSON(clusters, dist) {
     let clen = [];
-    for(var i=0; i<dist.length; i++){
-        clen.append(dist[i].length);
+    for (var i = 0; i < dist.length; i++) {
+        clen.push(dist[i].length);
     }
-    return {
+    var tp = {
         "data": dist,
         clusters,
         "nclusters": dist.length,
         clen
     }
+    return tp;
 }
 
-async function worker(){
+function removeAllMarkers() {
+    for (var i = 0; i < allMarkers.length; i++)
+        map.removeObject(allMarkers[i]);
+    allMarkers = []
+}
+
+function makeMarker(lat, lng, ico) {
+    lat = '' + lat;
+    lng = '' + lng;
+    var x = new H.map.Marker({
+        lat: parseFloat(lat).toFixed(4),
+        lng: parseFloat(lng).toFixed(4)
+    }, {
+        icon: ico
+    });
+    allMarkers.push(x);
+    map.addObject(x);
+}
+
+function insertClusters(clusters) {
+    let r, lat = 0,
+        lng = 0,
+        parisIcon;
+    for (var i = 0; i < clusters.length; i++) {
+        parisIcon = new H.map.Icon(svgMarkup.replace('${FILL}', colors[i]).replace('${TEXT}', i + 1));
+        r = clusters[i];
+        for (var j = 0; j < r.length; j++) {
+            makeMarker(r[j][0], r[j][1], parisIcon);
+        }
+    }
+}
+
+async function pathMakerOrdered(order){
+    let cls=[];
+    for(var i=0; i<order.length; i++){
+        cls=order[i];
+        for(var j=0; j<cls.length-1; j++){
+            await calculateRouteFromAtoB(cls[j], cls[j+1], true);
+        }
+    }
+}
+
+async function worker() {
     let urlCluster = urlServer + '/uploadPoints';
-    // console.log(generateClusterJSON(rows))
     var clusters = (await axios.post(urlCluster, generateClusterJSON(rows))).data;
+    removeAllMarkers();
+    insertClusters(clusters);
     var dist = await calculateDistances(clusters);
     let urlDistance = urlServer + '/uploadDistances';
     let dstx = generateDistanceJSON(clusters, dist);
-    var someResult = await (axios.post(urlDistance, dstx)).data;
-    return someResult;
+    var orderedDistance = await (axios.post(urlDistance, dstx)).data;
+    await pathMakerOrdered(orderedDistance);
 }
+
+document.getElementById('routeListen').addEventListener('click', worker);

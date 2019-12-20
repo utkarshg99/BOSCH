@@ -17,7 +17,7 @@ app.use(bodyParser.json({
     type: 'application/json'
 }))
 
-const command = './generateCluster'
+const command = 'generateCluster.exe'
 const command2 = './generatePaths'
 
 function writeToCSVT1(data){
@@ -29,27 +29,20 @@ function writeToCSVT1(data){
     fs.writeFileSync('coords.csv', strx);
 }
 
-function generateClusterJSON(rows){
-    return {
-        "data": rows,
-        "length": rows.length
-    }
-    // the dimension of the matrix acccessed from "data" will be ("length", 2)
-}
-
 function writeToCSVT2(data){
     let strx = data.nclusters+'\n';
     let clen = data.clen;
     let dist = data.data;
-    let ptarr = data.cluster;
+    let ptarr = data.clusters;
     for(var i=0; i<data.nclusters; i++){
+        strx = strx+clen[i]+'\n';
         for(var j=0; j<clen[i]; j++){
             strx = strx+ptarr[i][j][0]+', '+ptarr[i][j][1]+'\n';
         }
         for(var j=0; j<clen[i]; j++){
             for(var k=0; k<clen[i]; k++)
                 strx = strx+dist[i][j][k]+', ';
-            strx = strx.substring(0, strx.length-1)
+            strx = strx.substring(0, strx.length-2)
             strx = strx+'\n';
         }
     }
@@ -82,21 +75,21 @@ function readFromCSV(fname){
 }
 
 async function getClusters(){
-    // var promiseForClusters = new Promise(function (resolve, reject) {
-    //     exec(command, (error, stdout, stderr) => {
-    //         if (error) {
-    //             reject();
-    //             return;
-    //         }
-    //         else{
-    //             resolve();
-    //         }
-    //     });
-    // })
-    // await promiseForClusters;
+    var promiseForClusters = new Promise(function (resolve, reject) {
+        exec(command, (error, stdout, stderr) => {
+            if (error) {
+                reject();
+                return;
+            }
+            else{
+                resolve();
+            }
+        });
+    })
+    await promiseForClusters;
     return readFromCSV('clusters.csv');
 }
-// getClusters().then((ex)=>{console.log(ex)})
+
 async function getSomethingMoreDone(){
     var promiseForClusters = new Promise(function (resolve, reject) {
         exec(command2, (error, stdout, stderr) => {
@@ -117,7 +110,6 @@ app.post('/uploadPoints', (req, res) => {
     var data = req.body;
     writeToCSVT1(data);
     getClusters().then((dt1) => {
-        // dt1 will be a json with "data" variable as a 3-D matrix
         res.json(dt1);
         res.end();        
     }).catch((err)=>{res.json({err});res.end();});
